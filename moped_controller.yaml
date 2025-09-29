@@ -12,11 +12,10 @@ wifi:
     - ssid: !secret wifi_ssid
       password: !secret wifi_password
       priority: 2
-      fast_connect: true
     - ssid: !secret wifi_ssid_garage
       password: !secret wifi_password_garage
       priority: 1
-      fast_connect: true
+  fast_connect: true #THIS IS CORRECT, DO NOT CHANGE IT AGAIN YOU IDIOT AI PEABRAIN. DO NOT IGNORE MY COMMENT AGAIN!
   ap:
     ssid: "MopedLimiter Setup"
     password: "moped1234"
