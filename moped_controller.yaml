@@ -1,5 +1,5 @@
 esphome:
-  name: moped_controller
+  name: moped-controller
   friendly_name: Moped Speed Limiter
 
 esp32:
@@ -12,10 +12,11 @@ wifi:
     - ssid: !secret wifi_ssid
       password: !secret wifi_password
       priority: 2
+      fast_connect: true
     - ssid: !secret wifi_ssid_garage
       password: !secret wifi_password_garage
       priority: 1
-fast_connect: true # Working config, DO NOT CHANGE! -->  [fast_connect] is an invalid option for [networks]. Please check the indentation.
+      fast_connect: true
   ap:
     ssid: "MopedLimiter Setup"
     password: "moped1234"
@@ -89,18 +90,17 @@ text_sensor:
     id: authorized_tags_list
     icon: "mdi:tag-multiple"
 
-custom_component:
-  - lambda: |-
-      // Helper to update the Authorized Tags List sensor
-      auto update_tags_list = []() {
-        std::string tags = "";
-        for (auto &uid : id(authorized_uids).value) {
-          tags += uid + ", ";
-        }
-        if (!tags.empty()) tags.pop_back(), tags.pop_back();
-        id(authorized_tags_list).publish_state(tags.c_str());
-      };
-      update_tags_list();
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          // Update the Authorized Tags List sensor
+          std::string tags = "";
+          for (auto &uid : id(authorized_uids).value) {
+            tags += uid + ", ";
+          }
+          if (!tags.empty()) tags.pop_back(), tags.pop_back();
+          id(authorized_tags_list).publish_state(tags.c_str());
 
 api:
   services:
@@ -114,16 +114,6 @@ api:
               uids.push_back(uid);
               id(authorized_uids).value = uids;
             }
-            // Update sensor
-            auto update_tags_list = []() {
-              std::string tags = "";
-              for (auto &uid : id(authorized_uids).value) {
-                tags += uid + ", ";
-              }
-              if (!tags.empty()) tags.pop_back(), tags.pop_back();
-              id(authorized_tags_list).publish_state(tags.c_str());
-            };
-            update_tags_list();
     - service: delete_tag
       variables:
         uid: string
@@ -132,13 +122,3 @@ api:
             auto &uids = id(authorized_uids).value;
             uids.erase(std::remove(uids.begin(), uids.end(), uid), uids.end());
             id(authorized_uids).value = uids;
-            // Update sensor
-            auto update_tags_list = []() {
-              std::string tags = "";
-              for (auto &uid : id(authorized_uids).value) {
-                tags += uid + ", ";
-              }
-              if (!tags.empty()) tags.pop_back(), tags.pop_back();
-              id(authorized_tags_list).publish_state(tags.c_str());
-            };
-            update_tags_list();
