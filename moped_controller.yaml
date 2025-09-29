@@ -1,6 +1,16 @@
 esphome:
   name: moped-controller
   friendly_name: Moped Speed Limiter
+  on_boot:
+    then:
+      - lambda: |-
+          // Initialize the Authorized Tags List sensor
+          std::string tags = "";
+          for (auto &uid : id(authorized_uids).value) {
+            tags += uid + ", ";
+          }
+          if (!tags.empty()) tags.pop_back(), tags.pop_back();
+          id(authorized_tags_list).publish_state(tags.c_str());
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -89,18 +99,6 @@ text_sensor:
     id: authorized_tags_list
     icon: "mdi:tag-multiple"
 
-interval:
-  - interval: 1s
-    then:
-      - lambda: |-
-          // Update the Authorized Tags List sensor
-          std::string tags = "";
-          for (auto &uid : id(authorized_uids).value) {
-            tags += uid + ", ";
-          }
-          if (!tags.empty()) tags.pop_back(), tags.pop_back();
-          id(authorized_tags_list).publish_state(tags.c_str());
-
 api:
   services:
     - service: add_tag
@@ -113,6 +111,13 @@ api:
               uids.push_back(uid);
               id(authorized_uids).value = uids;
             }
+            // Update the tags list display
+            std::string tags = "";
+            for (auto &uid : id(authorized_uids).value) {
+              tags += uid + ", ";
+            }
+            if (!tags.empty()) tags.pop_back(), tags.pop_back();
+            id(authorized_tags_list).publish_state(tags.c_str());
     - service: delete_tag
       variables:
         uid: string
@@ -121,3 +126,10 @@ api:
             auto &uids = id(authorized_uids).value;
             uids.erase(std::remove(uids.begin(), uids.end(), uid), uids.end());
             id(authorized_uids).value = uids;
+            // Update the tags list display
+            std::string tags = "";
+            for (auto &uid : id(authorized_uids).value) {
+              tags += uid + ", ";
+            }
+            if (!tags.empty()) tags.pop_back(), tags.pop_back();
+            id(authorized_tags_list).publish_state(tags.c_str());
