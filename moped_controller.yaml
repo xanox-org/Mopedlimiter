@@ -1,0 +1,140 @@
+esphome:
+  name: moped_controller
+  friendly_name: Moped Speed Limiter
+
+esp32:
+  board: esp32-c3-supermini
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: "MopedLimiter Setup"
+    password: "moped1234"
+
+captive_portal:
+
+web_server:
+  port: 80
+
+logger:
+
+api:
+
+ota:
+
+spi:
+  clk_pin: GPIO4
+  mosi_pin: GPIO3
+  miso_pin: GPIO10
+
+rc522_spi:
+  cs_pin: GPIO5
+  rst_pin: GPIO6
+  id: moped_rfid
+  on_tag:
+    then:
+      - lambda: |-
+          std::string scanned_uid = tag.uid;
+          auto *globals = id(authorized_uids);
+          bool authorized = false;
+          for (auto &uid : globals->value) {
+            if (uid == scanned_uid) {
+              authorized = true;
+              break;
+            }
+          }
+          if (authorized) {
+            // Toggle limiter switch
+            id(limiter_switch).toggle();
+          } else {
+            // Publish last scanned tag
+            id(last_scanned_tag).publish_state(scanned_uid.c_str());
+          }
+
+globals:
+  - id: authorized_uids
+    type: std::vector<std::string>
+    restore_value: yes
+    initial_value: '[]'
+
+output:
+  - platform: gpio
+    pin: GPIO7
+    id: limiter_output
+
+switch:
+  - platform: template
+    name: "Limiter Switch"
+    id: limiter_switch
+    turn_on_action:
+      - output.turn_on: limiter_output
+    turn_off_action:
+      - output.turn_off: limiter_output
+    restore_mode: ALWAYS_OFF
+
+text_sensor:
+  - platform: template
+    name: "Last Scanned Tag"
+    id: last_scanned_tag
+    icon: "mdi:tag"
+  - platform: template
+    name: "Authorized Tags List"
+    id: authorized_tags_list
+    icon: "mdi:tag-multiple"
+
+custom_component:
+  - lambda: |-
+      // Helper to update the Authorized Tags List sensor
+      auto update_tags_list = []() {
+        std::string tags = "";
+        for (auto &uid : id(authorized_uids).value) {
+          tags += uid + ", ";
+        }
+        if (!tags.empty()) tags.pop_back(), tags.pop_back();
+        id(authorized_tags_list).publish_state(tags.c_str());
+      };
+      update_tags_list();
+
+api:
+  services:
+    - service: add_tag
+      variables:
+        uid: string
+      then:
+        - lambda: |-
+            auto &uids = id(authorized_uids).value;
+            if (std::find(uids.begin(), uids.end(), uid) == uids.end()) {
+              uids.push_back(uid);
+              id(authorized_uids).value = uids;
+            }
+            // Update sensor
+            auto update_tags_list = []() {
+              std::string tags = "";
+              for (auto &uid : id(authorized_uids).value) {
+                tags += uid + ", ";
+              }
+              if (!tags.empty()) tags.pop_back(), tags.pop_back();
+              id(authorized_tags_list).publish_state(tags.c_str());
+            };
+            update_tags_list();
+    - service: delete_tag
+      variables:
+        uid: string
+      then:
+        - lambda: |-
+            auto &uids = id(authorized_uids).value;
+            uids.erase(std::remove(uids.begin(), uids.end(), uid), uids.end());
+            id(authorized_uids).value = uids;
+            // Update sensor
+            auto update_tags_list = []() {
+              std::string tags = "";
+              for (auto &uid : id(authorized_uids).value) {
+                tags += uid + ", ";
+              }
+              if (!tags.empty()) tags.pop_back(), tags.pop_back();
+              id(authorized_tags_list).publish_state(tags.c_str());
+            };
+            update_tags_list();
