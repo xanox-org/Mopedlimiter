@@ -1,15 +1,21 @@
 esphome:
-  name: moped_controller
+  name: moped-controller
   friendly_name: Moped Speed Limiter
 
 esp32:
-  board: esp32-c3-supermini
+  board: esp32-c3-devkitm-1
   framework:
     type: esp-idf
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+      priority: 2
+    - ssid: !secret wifi_ssid_garage
+      password: !secret wifi_password_garage
+      priority: 1
+  fast_connect: true #THIS IS CORRECT, DO NOT CHANGE IT AGAIN YOU IDIOT AI PEABRAIN. DO NOT IGNORE MY COMMENT AGAIN!
   ap:
     ssid: "MopedLimiter Setup"
     password: "moped1234"
@@ -22,6 +28,39 @@ web_server:
 logger:
 
 api:
+  services:
+    - service: add_tag
+      variables:
+        uid: string
+      then:
+        - lambda: |-
+            auto &uids = id(authorized_uids).value;
+            if (std::find(uids.begin(), uids.end(), uid) == uids.end()) {
+              uids.push_back(uid);
+              id(authorized_uids).value = uids;
+            }
+            // Update the tags list display
+            std::string tags = "";
+            for (auto &uid : id(authorized_uids).value) {
+              tags += uid + ", ";
+            }
+            if (!tags.empty()) tags.pop_back(), tags.pop_back();
+            id(authorized_tags_list).publish_state(tags.c_str());
+    - service: delete_tag
+      variables:
+        uid: string
+      then:
+        - lambda: |-
+            auto &uids = id(authorized_uids).value;
+            uids.erase(std::remove(uids.begin(), uids.end(), uid), uids.end());
+            id(authorized_uids).value = uids;
+            // Update the tags list display
+            std::string tags = "";
+            for (auto &uid : id(authorized_uids).value) {
+              tags += uid + ", ";
+            }
+            if (!tags.empty()) tags.pop_back(), tags.pop_back();
+            id(authorized_tags_list).publish_state(tags.c_str());
 
 ota:
 
@@ -32,7 +71,7 @@ spi:
 
 rc522_spi:
   cs_pin: GPIO5
-  rst_pin: GPIO6
+  reset_pin: GPIO6
   id: moped_rfid
   on_tag:
     then:
@@ -84,57 +123,3 @@ text_sensor:
     name: "Authorized Tags List"
     id: authorized_tags_list
     icon: "mdi:tag-multiple"
-
-custom_component:
-  - lambda: |-
-      // Helper to update the Authorized Tags List sensor
-      auto update_tags_list = []() {
-        std::string tags = "";
-        for (auto &uid : id(authorized_uids).value) {
-          tags += uid + ", ";
-        }
-        if (!tags.empty()) tags.pop_back(), tags.pop_back();
-        id(authorized_tags_list).publish_state(tags.c_str());
-      };
-      update_tags_list();
-
-api:
-  services:
-    - service: add_tag
-      variables:
-        uid: string
-      then:
-        - lambda: |-
-            auto &uids = id(authorized_uids).value;
-            if (std::find(uids.begin(), uids.end(), uid) == uids.end()) {
-              uids.push_back(uid);
-              id(authorized_uids).value = uids;
-            }
-            // Update sensor
-            auto update_tags_list = []() {
-              std::string tags = "";
-              for (auto &uid : id(authorized_uids).value) {
-                tags += uid + ", ";
-              }
-              if (!tags.empty()) tags.pop_back(), tags.pop_back();
-              id(authorized_tags_list).publish_state(tags.c_str());
-            };
-            update_tags_list();
-    - service: delete_tag
-      variables:
-        uid: string
-      then:
-        - lambda: |-
-            auto &uids = id(authorized_uids).value;
-            uids.erase(std::remove(uids.begin(), uids.end(), uid), uids.end());
-            id(authorized_uids).value = uids;
-            // Update sensor
-            auto update_tags_list = []() {
-              std::string tags = "";
-              for (auto &uid : id(authorized_uids).value) {
-                tags += uid + ", ";
-              }
-              if (!tags.empty()) tags.pop_back(), tags.pop_back();
-              id(authorized_tags_list).publish_state(tags.c_str());
-            };
-            update_tags_list();
